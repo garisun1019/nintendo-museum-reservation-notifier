@@ -1,5 +1,8 @@
 name: Nintendo Museum Cloud Monitor - Telegram Version
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   schedule:
     - cron: '*/10 * * * *'  # 每 10 分钟检查一次
@@ -11,10 +14,10 @@ jobs:
     
     steps:
       - name: 📥 Check out code
-        uses: actions/checkout@v4  # ← 改为 v4
+        uses: actions/checkout@v4
       
       - name: 🐍 Set up Python
-        uses: actions/setup-python@v5  # ← 改为 v5
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       
