@@ -36,136 +36,105 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TARGET_DATE: ${{ secrets.TARGET_DATE }}
-          SERVICE_TYPE: telegram
         run: |
           export PATH=/usr/lib/chromium-browser:$PATH
-          python3 << 'EOF'
-import os
-import sys
-import time
-import logging
-import requests
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.options import Options
+          python3 << 'ENDOFSCRIPT'
+          import os
+          import sys
+          import time
+          import logging
+          import requests
+          from selenium import webdriver
+          from selenium.webdriver.common.by import By
+          from selenium.webdriver.support.ui import WebDriverWait
+          from selenium.webdriver.support import expected_conditions as EC
+          from selenium.webdriver.chrome.options import Options
+          
+          logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+          logger = logging.getLogger(__name__)
+          
+          TRIGGER_DELAY = 2
+          RELOAD_INTERVAL = 10
+          CALENDAR_URL = "https://museum-tickets.nintendo.com/en/calendar"
+          
+          target_date = os.getenv('TARGET_DATE')
+          telegram_token = os.getenv('TELEGRAM_BOT_TOKEN')
+          telegram_chat_id = os.getenv('TELEGRAM_CHAT_ID')
+          
+          if not all([target_date, telegram_token, telegram_chat_id]):
+              logger.error("缺少环境变量")
+              sys.exit(1)
+          
+          def send_telegram(title, body):
+              try:
+                  msg = f"🎮 {title}\n\n{body}\n\n访问: {CALENDAR_URL}"
+                  url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+                  response = requests.post(
+                      url, 
+                      json={"chat_id": telegram_chat_id, "text": msg}, 
+                      timeout=10
+                  )
+                  response.raise_for_status()
+                  logger.info("✅ 通知已发送")
+                  return True
+              except Exception as e:
+                  logger.error(f"❌ 发送失败: {e}")
+                  return False
+          
+          try:
+              chrome_options = Options()
+              chrome_options.add_argument('--headless=new')
+              chrome_options.add_argument('--no-sandbox')
+              chrome_options.add_argument('--disable-dev-shm-usage')
+              chrome_options.add_argument('--disable-gpu')
+              chrome_options.add_argument('--window-size=1920,1080')
+              
+              logger.info(f"🚀 开始检查 - 日期: {target_date}")
+              
+              driver = webdriver.Chrome(executable_path='/usr/bin/chromedriver', options=chrome_options)
+              
+              try:
+                  driver.get(CALENDAR_URL)
+                  logger.info("✅ 页面已加载")
+                  time.sleep(TRIGGER_DELAY)
+                  
+                  wait = WebDriverWait(driver, 5)
+                  td_element = wait.until(
+                      EC.presence_of_element_located(
+                          (By.CSS_SELECTOR, f"td[data-date='{target_date}']")
+                      )
+                  )
+                  logger.info(f"✅ 找到日期: {target_date}")
+                  
+                  try:
+                      sale_element = td_element.find_element(
+                          By.XPATH,
+                          ".//div/div/div/div/div/div[contains(@class, 'sale')]"
+                      )
+                      logger.info("🎉 有票！")
+                      send_telegram("有票了", f"{target_date} 有可用座位")
+                  except:
+                      logger.info(f"ℹ️ {target_date} 暂无票")
+              finally:
+                  driver.quit()
+              
+          except Exception as e:
+              logger.error(f"❌ 错误: {e}")
+              sys.exit(1)
+          ENDOFSCRIPT
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-TRIGGER_DELAY = 2
-RELOAD_INTERVAL = 10
-CALENDAR_URL = "https://museum-tickets.nintendo.com/en/calendar"
-
-target_date = os.getenv('TARGET_DATE')
-telegram_token = os.getenv('TELEGRAM_BOT_TOKEN')
-telegram_chat_id = os.getenv('TELEGRAM_CHAT_ID')
-
-if not all([target_date, telegram_token, telegram_chat_id]):
-    logger.error("❌ 缺少环境变量: TARGET_DATE, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID")
-    sys.exit(1)
-
-def send_telegram(title, body):
-    try:
-        msg = f"🎮 <b>{title}</b>\n\n{body}\n\n<a href='{CALENDAR_URL}'>点击抢票</a>"
-        url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
-        response = requests.post(
-            url, 
-            json={
-                "chat_id": telegram_chat_id, 
-                "text": msg, 
-                "parse_mode": "HTML"
-            }, 
-            timeout=10
-        )
-        response.raise_for_status()
-        logger.info("✅ Telegram 通知已发送")
-        return True
-    except Exception as e:
-        logger.error(f"❌ Telegram 发送失败: {e}")
-        return False
-
-try:
-    chrome_options = Options()
-    chrome_options.add_argument('--headless=new')
-    chrome_options.add_argument('--no-sandbox')
-    chrome_options.add_argument('--disable-dev-shm-usage')
-    chrome_options.add_argument('--disable-gpu')
-    chrome_options.add_argument('--window-size=1920,1080')
-    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-    chrome_options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
-    
-    prefs = {"profile.managed_default_content_settings.images": 2}
-    chrome_options.add_experimental_option("prefs", prefs)
-    
-    logger.info(f"🚀 开始检查 - 日期: {target_date}")
-    
-    driver = webdriver.Chrome(
-        executable_path='/usr/bin/chromedriver',
-        options=chrome_options
-    )
-    
-    try:
-        driver.get(CALENDAR_URL)
-        logger.info(f"✅ 页面已加载")
-        time.sleep(TRIGGER_DELAY)
-        
-        wait = WebDriverWait(driver, 5)
-        td_element = wait.until(
-            EC.presence_of_element_located(
-                (By.CSS_SELECTOR, f"td[data-date='{target_date}']")
-            )
-        )
-        logger.info(f"✅ 找到日期元素: {target_date}")
-        
-        try:
-            sale_element = td_element.find_element(
-                By.XPATH,
-                ".//div/div/div/div/div/div[contains(@class, 'sale')]"
-            )
-            if sale_element:
-                logger.info(f"🎉 发现有票！日期: {target_date}")
-                send_telegram(
-                    "任天堂博物馆有票了！",
-                    f"{target_date} 有可用座位，立即前往预订！"
-                )
-            else:
-                logger.info(f"ℹ️ {target_date} 暂无票")
-        except:
-            logger.info(f"ℹ️ {target_date} 暂无票")
-    finally:
-        driver.quit()
-        logger.info("🛑 检查完成")
-
-except Exception as e:
-    logger.error(f"❌ 执行出错: {e}")
-    import traceback
-    traceback.print_exc()
-    sys.exit(1)
-EOF
-      
       - name: ❌ Notify on failure
         if: failure()
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python3 << 'EOF'
-import requests
-import os
-
-try:
-    token = os.getenv('TELEGRAM_BOT_TOKEN')
-    chat_id = os.getenv('TELEGRAM_CHAT_ID')
-    
-    if token and chat_id:
-        url = f"https://api.telegram.org/bot{token}/sendMessage"
-        payload = {
-            "chat_id": chat_id,
-            "text": "⚠️ <b>Nintendo Museum Monitor 执行失败</b>\n\n请检查 GitHub Actions 日志以了解详情",
-            "parse_mode": "HTML"
-        }
-        requests.post(url, json=payload, timeout=10)
-except Exception as e:
-    print(f"Failed to send notification: {e}")
-EOF
+        run: |
+          python3 << 'ENDOFSCRIPT'
+          import requests
+          import os
+          token = os.getenv('TELEGRAM_BOT_TOKEN')
+          chat_id = os.getenv('TELEGRAM_CHAT_ID')
+          if token and chat_id:
+              url = f"https://api.telegram.org/bot{token}/sendMessage"
+              requests.post(url, json={"chat_id": chat_id, "text": "⚠️ Monitor 执行失败，请检查日志"}, timeout=10)
+          ENDOFSCRIPT
