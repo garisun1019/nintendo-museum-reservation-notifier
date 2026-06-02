@@ -2,6 +2,8 @@
 <html class="center" lang="en" data-theme="light" style="height: 100%">
   <head>
     <meta charset="UTF-8" />
+    <!-- 新增以下行以修复 viewport 缺失问题 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Nintendo Museum Reservation Notifier</title>
     <link
       href="https://cdn.jsdelivr.net/npm/daisyui@4.11.1/dist/full.min.css"
@@ -26,6 +28,7 @@
       <img
         class="element mx-2 my-2"
         src="https://museum-tickets.nintendo.com/build/assets/top_museum_pc-aa9d3be9.jpg"
+        alt="Nintendo Museum"
       />
       <input
         id="date"
@@ -33,18 +36,56 @@
         type="date"
         placeholder="YYYY-MM-DD"
       />
-      <div
-        class="tooltip"
-        data-tip="
-        First, you need to install Bark on your phone. Then, click on the cloud icon at the top right corner of Bark, select a server and copy the address and key, and finally paste it into the input here."
+      
+      <!-- 选择通知服务 -->
+      <select
+        id="service"
+        class="select select-bordered element mx-2 mb-2"
+        aria-label="Notification Service"
+        title="Notification Service"
       >
-        <input
-          id="endpoint"
-          class="input input-bordered element mx-2 mb-2"
-          type="text"
-          placeholder="Bark API Endpoint"
-        />
+        <option value="bark">Bark (iOS)</option>
+        <option value="telegram">Telegram (iOS/Android)</option>
+      </select>
+
+      <!-- Bark 配置 -->
+      <div id="barkConfig">
+        <div
+          class="tooltip"
+          data-tip="First, you need to install Bark on your phone. Then, click on the cloud icon at the top right corner of Bark, select a server and copy the address and key, and finally paste it into the input here."
+        >
+          <input
+            id="endpoint"
+            class="input input-bordered element mx-2 mb-2"
+            type="text"
+            placeholder="Bark API Endpoint"
+          />
+        </div>
       </div>
+
+      <!-- Telegram 配置 -->
+      <div id="telegramConfig" style="display: none;">
+        <div
+          class="tooltip"
+          data-tip="1. Create a Telegram bot by messaging @BotFather and get the bot token. 2. Get your Chat ID by sending a message to the bot and visiting https://api.telegram.org/bot{YOUR_TOKEN}/getUpdates"
+        >
+          <input
+            id="telegramToken"
+            class="input input-bordered element mx-2 mb-2"
+            type="password"
+            placeholder="Telegram Bot Token"
+          />
+        </div>
+        <div class="tooltip" data-tip="Your personal Chat ID for receiving notifications">
+          <input
+            id="telegramChatId"
+            class="input input-bordered element mx-2 mb-2"
+            type="text"
+            placeholder="Telegram Chat ID"
+          />
+        </div>
+      </div>
+
       <button id="start" class="btn element mx-2 mb-2">Start</button>
     </div>
   </body>

@@ -4,7 +4,7 @@ const path = require("path");
 const createAppWindow = () => {
   const win = new BrowserWindow({
     width: 360,
-    height: 300,
+    height: 500,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
     },
@@ -16,7 +16,7 @@ const createAppWindow = () => {
   win.loadFile("index.html");
 };
 
-const createCafeWindow = (date, endpoint) => {
+const createCafeWindow = (date, config) => {
   const win = new BrowserWindow({
     width: 800,
     height: 600,
@@ -32,8 +32,10 @@ const createCafeWindow = (date, endpoint) => {
   win.loadURL("https://museum-tickets.nintendo.com/en/calendar");
 
   win.webContents.on("did-finish-load", () => {
+    // 将配置对象转换为 JSON 字符串传递
+    const configJson = JSON.stringify(config);
     win.webContents.executeJavaScript(
-      `window.electron.inject("${date}", "${endpoint}");`
+      `window.electron.inject("${date}", ${configJson});`
     );
   });
 
@@ -47,6 +49,6 @@ app.whenReady().then(() => {
   createAppWindow();
 });
 
-ipcMain.on("start", (_, date, endpoint) => {
-  createCafeWindow(date, endpoint);
+ipcMain.on("start", (_, date, config) => {
+  createCafeWindow(date, config);
 });
