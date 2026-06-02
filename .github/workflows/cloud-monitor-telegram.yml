@@ -1,0 +1,115 @@
+name: Nintendo Museum Cloud Monitor - Telegram Version
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # 每 10 分钟检查一次
+  workflow_dispatch:
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Check out code
+        uses: actions/checkout@v3
+      
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install selenium requests python-dotenv
+      
+      - name: 🌐 Install Chromium and ChromeDriver
+        run: |
+          apt-get update
+          apt-get install -y chromium-browser chromium-chromedriver
+      
+      - name: 🚀 Run Monitor
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TARGET_DATE: ${{ secrets.TARGET_DATE }}
+          SERVICE_TYPE: telegram
+        run: |
+          export PATH=/usr/lib/chromium-browser:$PATH
+          python3 << 'EOF'
+          import os
+          import sys
+          import time
+          import logging
+          import requests
+          from datetime import datetime
+          from selenium import webdriver
+          from selenium.webdriver.common.by import By
+          from selenium.webdriver.support.ui import WebDriverWait
+          from selenium.webdriver.support import expected_conditions as EC
+          from selenium.webdriver.chrome.options import Options
+          
+          logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+          logger = logging.getLogger(__name__)
+          
+          TRIGGER_DELAY = 2
+          RELOAD_INTERVAL = 10
+          CALENDAR_URL = "https://museum-tickets.nintendo.com/en/calendar"
+          
+          target_date = os.getenv('TARGET_DATE')
+          telegram_token = os.getenv('TELEGRAM_BOT_TOKEN')
+          telegram_chat_id = os.getenv('TELEGRAM_CHAT_ID')
+          
+          if not all([target_date, telegram_token, telegram_chat_id]):
+              logger.error("❌ 缺少环境变量")
+              sys.exit(1)
+          
+          def send_telegram(title, body):
+              try:
+                  msg = f"🎮 <b>{title}</b>\n\n{body}\n\n<a href='{CALENDAR_URL}'>点击抢票</a>"
+                  url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+                  requests.post(url, json={"chat_id": telegram_chat_id, "text": msg, "parse_mode": "HTML"}, timeout=10)
+                  logger.info("✅ 通知已发送")
+                  return True
+              except Exception as e:
+                  logger.error(f"❌ 发送失败: {e}")
+                  return False
+          
+          try:
+              chrome_options = Options()
+              chrome_options.add_argument('--headless=new')
+              chrome_options.add_argument('--no-sandbox')
+              chrome_options.add_argument('--disable-dev-shm-usage')
+              chrome_options.add_argument('--disable-gpu')
+              chrome_options.add_argument('--window-size=1920,1080')
+              prefs = {"profile.managed_default_content_settings.images": 2}
+              chrome_options.add_experimental_option("prefs", prefs)
+              
+              logger.info(f"🚀 开始检查 - 日期: {target_date}")
+              driver = webdriver.Chrome(executable_path='/usr/bin/chromedriver', options=chrome_options)
+              
+              try:
+                  driver.get(CALENDAR_URL)
+                  logger.info(f"✅ 页面已加载")
+                  time.sleep(TRIGGER_DELAY)
+                  
+                  wait = WebDriverWait(driver, 5)
+                  td_element = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, f"td[data-date='{target_date}']")))
+                  logger.info(f"✅ 找到日期")
+                  
+                  try:
+                      sale_element = td_element.find_element(By.XPATH, ".//div/div/div/div/div/div[contains(@class, 'sale')]")
+                      if sale_element:
+                          logger.info(f"🎉 有票！")
+                          send_telegram("任天堂博物馆有票了！", f"{target_date} 有可用座位，立即前往预订！")
+                  except:
+                      logger.info(f"ℹ️ 暂无票")
+              finally:
+                  driver.quit()
+                  logger.info("🛑 完成")
+          
+          except Exception as e:
+              logger.error(f"❌ 错误: {e}")
+              sys.exit(1)
+          
+          EOF
